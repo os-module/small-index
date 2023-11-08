@@ -1,4 +1,4 @@
-use small_index::{IndexAllocator};
+use small_index::IndexAllocator;
 
 fn main() {
     let mut allocator = IndexAllocator::<128>::new(); // Specify the maximum index value as a generic parameter.

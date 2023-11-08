@@ -19,7 +19,7 @@ use core::error::Error;
 use core::fmt::{Debug, Display, Formatter};
 use core::ops::Range;
 
-#[derive(Debug,Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum IndexAllocationError {
     NoFreeIndex,
     InvalidIndex,
@@ -38,27 +38,32 @@ impl Display for IndexAllocationError {
     }
 }
 
-impl Error for IndexAllocationError{
-
-}
+impl Error for IndexAllocationError {}
 
 type Result<T> = core::result::Result<T, IndexAllocationError>;
 
-pub struct IndexAllocator<const MAX_INDEX: usize> where [(); (MAX_INDEX + 64) / 64]:{
+pub struct IndexAllocator<const MAX_INDEX: usize>
+where
+    [(); (MAX_INDEX + 64) / 64]:,
+{
     map: [u64; (MAX_INDEX + 64) / 64],
     current_allocation: usize,
     max_index: usize,
 }
 
 impl<const MAX_INDEX: usize> Default for IndexAllocator<MAX_INDEX>
-where [(); (MAX_INDEX + 64) / 64]:
- {
+where
+    [(); (MAX_INDEX + 64) / 64]:,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64) / 64]: {
+impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>
+where
+    [(); (MAX_INDEX + 64) / 64]:,
+{
     pub fn new() -> Self {
         IndexAllocator {
             map: [0; (MAX_INDEX + 64) / 64],
@@ -70,8 +75,8 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
     /// Set the maximum index value. This will clear the bits in the map that are above the new max index
     ///
     /// The new max index must be less than or equal to the generic parameter `MAX_INDEX`.
-    pub fn set_max_index(&mut self, max_index: usize)->Result<()>{
-        if max_index > MAX_INDEX{
+    pub fn set_max_index(&mut self, max_index: usize) -> Result<()> {
+        if max_index > MAX_INDEX {
             return Err(IndexAllocationError::InvalidIndex);
         }
         if max_index < self.max_index {
@@ -79,30 +84,33 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
             let word_idx = max_index / 64;
             let bit = max_index % 64;
             let mask = (1u64 << bit) - 1;
-            self.map.iter_mut().skip(word_idx + 1).for_each(|word| *word = 0);
+            self.map
+                .iter_mut()
+                .skip(word_idx + 1)
+                .for_each(|word| *word = 0);
             self.map[word_idx] &= mask;
         }
         self.max_index = max_index;
         Ok(())
     }
 
-    fn allocate_inner(&mut self,r:Range<usize>)->Result<usize>{
-        let start= r.start;
+    fn allocate_inner(&mut self, r: Range<usize>) -> Result<usize> {
+        let start = r.start;
         let tmp_map = &mut self.map[r];
         for (word_idx, word) in tmp_map.iter_mut().enumerate() {
             if *word != u64::MAX {
                 let free_bits = !*word;
                 if free_bits != 0 {
                     // get the index of the first free bit
-                    let bit = find_lowest_zero_bit(!free_bits).unwrap();
-                    let index = (word_idx+start) * 64 + bit;
+                    let bit = free_bits.trailing_zeros() as usize;
+                    let index = (word_idx + start) * 64 + bit;
                     return if index < self.max_index {
                         self.current_allocation = index + 1;
                         *word |= 1u64 << bit;
                         Ok(index)
                     } else {
                         Err(IndexAllocationError::InvalidIndex)
-                    }
+                    };
                 }
             }
         }
@@ -111,12 +119,12 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
 
     /// Allocate an index.
     pub fn allocate(&mut self) -> Result<usize> {
-        let r = self.current_allocation/64..(self.max_index+64)/64;
-        let res=  self.allocate_inner(r);
+        let r = self.current_allocation / 64..(self.max_index + 64) / 64;
+        let res = self.allocate_inner(r);
         match res {
             Ok(index) => Ok(index),
             Err(IndexAllocationError::InvalidIndex) => {
-                let r = 0..self.current_allocation/64;
+                let r = 0..self.current_allocation / 64;
                 self.allocate_inner(r)
             }
             Err(e) => Err(e),
@@ -124,7 +132,7 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
     }
 
     /// Deallocate an index.
-    pub fn deallocate(&mut self, index: usize)->Result<()> {
+    pub fn deallocate(&mut self, index: usize) -> Result<()> {
         if index < self.max_index {
             let word_idx = index / 64;
             let bit = index % 64;
@@ -134,7 +142,7 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
             } // index is not allocated
             self.map[word_idx] &= !mask;
             Ok(())
-        }else if index < MAX_INDEX{
+        } else if index < MAX_INDEX {
             Err(IndexAllocationError::Truncated)
         } else {
             Err(IndexAllocationError::InvalidIndex)
@@ -142,13 +150,13 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
     }
 
     /// Test if an index is allocated.
-    pub fn test_bit(&self, index: usize)->Result<bool>{
+    pub fn test_bit(&self, index: usize) -> Result<bool> {
         if index < self.max_index {
             let word_idx = index / 64;
             let bit = index % 64;
             let mask = 1u64 << bit;
             Ok((self.map[word_idx] & mask) != 0)
-        }else if index < MAX_INDEX{
+        } else if index < MAX_INDEX {
             Err(IndexAllocationError::Truncated)
         } else {
             Err(IndexAllocationError::InvalidIndex)
@@ -156,40 +164,30 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>where [(); (MAX_INDEX + 64
     }
 }
 
-fn find_lowest_zero_bit(word: u64) -> Option<usize> {
-    (0..64).find(|&i| (word & (1u64 << i)) == 0)
-}
-
-
 #[cfg(test)]
-mod tests{
+mod tests {
     use crate::IndexAllocator;
 
-    #[test]
-    fn test_find_lowest_zero_bit(){
-        assert_eq!(crate::find_lowest_zero_bit(0),Some(0));
-        assert_eq!(crate::find_lowest_zero_bit(1),Some(1));
-        assert_eq!(crate::find_lowest_zero_bit(3),Some(2));
-
-    }
-
-    fn test_alloc_success_max<const MAX:usize>()where [(); (MAX + 64) / 64]:{
+    fn test_alloc_success_max<const MAX: usize>()
+    where
+        [(); (MAX + 64) / 64]:,
+    {
         let mut allocator = IndexAllocator::<MAX>::new(); // Specify the maximum index value as a generic parameter.
-        for i in 0..MAX{
+        for i in 0..MAX {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i));
+            assert_eq!(index, Ok(i));
         }
-        for i in 0..MAX{
+        for i in 0..MAX {
             let index = allocator.deallocate(i);
-            assert_eq!(index,Ok(()));
+            assert_eq!(index, Ok(()));
         }
-        for i in 0..MAX{
+        for i in 0..MAX {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i));
+            assert_eq!(index, Ok(i));
         }
     }
     #[test]
-    fn test_alloc_success(){
+    fn test_alloc_success() {
         test_alloc_success_max::<128>();
         test_alloc_success_max::<256>();
         test_alloc_success_max::<0>();
@@ -198,85 +196,94 @@ mod tests{
 
     #[test]
     #[should_panic]
-    fn test_alloc_fail(){
+    fn test_alloc_fail() {
         let mut allocator = IndexAllocator::<0>::new(); // Specify the maximum index value as a generic parameter.
         allocator.allocate().unwrap();
     }
 
     #[test]
     #[should_panic]
-    fn test_alloc_fail2(){
+    fn test_alloc_fail2() {
         let mut allocator = IndexAllocator::<10>::new();
-        for i in 0..10{
+        for i in 0..10 {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i));
+            assert_eq!(index, Ok(i));
         }
         allocator.allocate().unwrap();
     }
 
     #[test]
     #[should_panic]
-    fn test_dealloc_fail(){
+    fn test_dealloc_fail() {
         let mut allocator = IndexAllocator::<10>::new();
-        for i in 0..10{
+        for i in 0..10 {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i));
+            assert_eq!(index, Ok(i));
         }
-        for i in 0..10{
+        for i in 0..10 {
             let index = allocator.deallocate(i);
-            assert_eq!(index,Ok(()));
+            assert_eq!(index, Ok(()));
         }
         allocator.deallocate(0).unwrap();
     }
     #[test]
     #[should_panic]
-    fn test_dealloc_fail2(){
+    fn test_dealloc_fail2() {
         let mut allocator = IndexAllocator::<10>::new();
         allocator.deallocate(1).unwrap();
     }
 
     #[test]
-    fn test_reset_max(){
+    fn test_reset_max() {
         let mut allocator = IndexAllocator::<10>::new();
-        for i in 0..10{
+        for i in 0..10 {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i));
+            assert_eq!(index, Ok(i));
         }
         let r = allocator.set_max_index(5);
-        assert_eq!(r,Ok(()));
+        assert_eq!(r, Ok(()));
         let r = allocator.allocate();
-        assert_eq!(r,Err(crate::IndexAllocationError::NoFreeIndex));
-        assert_eq!(allocator.set_max_index(10),Ok(()));
-        for i in 0..5{
+        assert_eq!(r, Err(crate::IndexAllocationError::NoFreeIndex));
+        assert_eq!(allocator.set_max_index(10), Ok(()));
+        for i in 0..5 {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i+5));
+            assert_eq!(index, Ok(i + 5));
         }
-        assert_eq!(allocator.allocate(),Err(crate::IndexAllocationError::NoFreeIndex));
+        assert_eq!(
+            allocator.allocate(),
+            Err(crate::IndexAllocationError::NoFreeIndex)
+        );
 
         allocator.set_max_index(5).unwrap();
-        for i in 0..5{
+        for i in 0..5 {
             let index = allocator.deallocate(i);
-            assert_eq!(index,Ok(()));
+            assert_eq!(index, Ok(()));
         }
-        for i in 5..10{
+        for i in 5..10 {
             let index = allocator.deallocate(i);
-            assert_eq!(index,Err(crate::IndexAllocationError::Truncated));
+            assert_eq!(index, Err(crate::IndexAllocationError::Truncated));
         }
-        assert_eq!(allocator.deallocate(1),Err(crate::IndexAllocationError::NotAllocated));
+        assert_eq!(
+            allocator.deallocate(1),
+            Err(crate::IndexAllocationError::NotAllocated)
+        );
         allocator.set_max_index(10).unwrap();
-        assert_eq!(allocator.deallocate(6),Err(crate::IndexAllocationError::NotAllocated));
+        assert_eq!(
+            allocator.deallocate(6),
+            Err(crate::IndexAllocationError::NotAllocated)
+        );
     }
 
     #[test]
-    fn test_alloc(){
+    fn test_alloc() {
         let mut allocator = IndexAllocator::<10>::new();
-        for i in 0..10{
+        for i in 0..10 {
             let index = allocator.allocate();
-            assert_eq!(index,Ok(i));
+            assert_eq!(index, Ok(i));
         }
         allocator.deallocate(0).unwrap();
         allocator.deallocate(5).unwrap();
-        assert_eq!(allocator.allocate(),Ok(0));
-        assert_eq!(allocator.allocate(),Ok(5));
+        assert_eq!(allocator.allocate(), Ok(0));
+        assert_eq!(allocator.allocate(), Ok(5));
     }
 }
