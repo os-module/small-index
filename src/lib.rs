@@ -42,6 +42,7 @@ impl Error for IndexAllocationError {}
 
 type Result<T> = core::result::Result<T, IndexAllocationError>;
 
+#[derive(Debug)]
 pub struct IndexAllocator<const MAX_INDEX: usize>
 where
     [(); (MAX_INDEX + 64) / 64]:,
@@ -49,6 +50,22 @@ where
     map: [u64; (MAX_INDEX + 64) / 64],
     current_allocation: usize,
     max_index: usize,
+}
+
+impl<const T: usize> Display for IndexAllocator<T>
+where
+    [(); (T + 64) / 64]:,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.write_fmt(format_args!(
+            "current_allocation:{}, max_index:{}\n",
+            self.current_allocation, self.max_index
+        ))?;
+        for v in self.map.iter() {
+            f.write_fmt(format_args!("{:>064b}\n", v))?;
+        }
+        Ok(())
+    }
 }
 
 impl<const MAX_INDEX: usize> Default for IndexAllocator<MAX_INDEX>
