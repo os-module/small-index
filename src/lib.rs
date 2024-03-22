@@ -42,7 +42,7 @@ impl Error for IndexAllocationError {}
 
 type Result<T> = core::result::Result<T, IndexAllocationError>;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct IndexAllocator<const MAX_INDEX: usize>
 where
     [(); (MAX_INDEX + 64) / 64]:,
@@ -81,7 +81,7 @@ impl<const MAX_INDEX: usize> IndexAllocator<MAX_INDEX>
 where
     [(); (MAX_INDEX + 64) / 64]:,
 {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         IndexAllocator {
             map: [0; (MAX_INDEX + 64) / 64],
             current_allocation: 0,

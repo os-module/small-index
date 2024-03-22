@@ -14,6 +14,8 @@ fn main() {
     let index3 = allocator.allocate();
 
     println!("{}", allocator);
-
     println!("Allocated index after deallocation: {:?}", index3);
+
+    let new = allocator.clone();
+    println!("{}", new);
 }
